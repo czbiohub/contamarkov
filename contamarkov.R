@@ -1,4 +1,5 @@
 library(magrittr)
+library(ggplot2)
 
 contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
   sample_table %>%
@@ -76,3 +77,23 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
   list(log10_rpm_intercept=log10_rpm_intercept, reports=reports)
 }
 
+plot_contamarkov <- function(contamarkov_list, subset_taxa=NULL, point_aes=aes()) {
+  log10_rpm_intercept <- contamarkov_list$log10_rpm_intercept
+  reports <- contamarkov_list$reports
+
+  if (!is.null(subset_taxa)) {
+    log10_rpm_intercept %>%
+      dplyr::filter(tax_id %in% subset_taxa) ->
+      log10_rpm_intercept
+
+    reports %>%
+      dplyr::filter(tax_id %in% subset_taxa) ->
+      reports
+  }
+
+  ggplot(reports, mapping=aes(x=log10(total_sample_concentration), y=log10(NT_rpm), group=tax_id)) +
+    geom_point(mapping=point_aes) +
+    geom_abline(data=log10_rpm_intercept,
+                mapping=aes(slope=-1, intercept=log10_rpm_intercept, lty=line)) +
+    facet_wrap(~tax_id)
+}
