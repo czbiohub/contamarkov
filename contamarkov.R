@@ -51,7 +51,7 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
     dplyr::group_by(category_name) %>%
     dplyr::mutate(padj=p.adjust(pval, method="BH")) %>%
     dplyr::ungroup() %>%
-    dplyr::select(!!! c(names(reports), "tax_concentration",
+    dplyr::select(!!! c(names(reports), "is_water", "tax_concentration",
                         "total_sample_concentration", "pval", "padj")) ->
     reports
 
@@ -78,7 +78,7 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
   list(log10_rpm_intercept=log10_rpm_intercept, reports=reports)
 }
 
-plot_contamarkov <- function(contamarkov_list, subset_taxa=NULL, point_aes=aes()) {
+plot_contamarkov <- function(contamarkov_list, subset_taxa=NULL, point_aes=aes(color=is_water)) {
   log10_rpm_intercept <- contamarkov_list$log10_rpm_intercept
   reports <- contamarkov_list$reports
 
