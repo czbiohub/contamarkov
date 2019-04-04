@@ -23,18 +23,19 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
   reports %>%
     dplyr::inner_join(sample_table) %>%
     dplyr::filter(!is_water) %>%
-    dplyr::group_by(tax_id) %>%
+    dplyr::group_by(tax_id, name, category_name) %>%
     dplyr::summarize(spillome_concentration=sum(NT_r / total_ercc_reads * ercc_concentration) *
-                       mean_spill_frac,
-                     category_name=unique(category_name)) ->
+                       mean_spill_frac) %>%
+    dplyr::ungroup() ->
     spillome
 
   n_water <- sum(sample_table$is_water)
   reports %>%
     dplyr::inner_join(sample_table) %>%
     dplyr::filter(is_water) %>%
-    dplyr::group_by(tax_id) %>%
-    dplyr::summarize(labome_concentration=sum(NT_r / total_ercc_reads * ercc_concentration) / n_water, category_name=unique(category_name)) ->
+    dplyr::group_by(tax_id, name, category_name) %>%
+    dplyr::summarize(labome_concentration=sum(NT_r / total_ercc_reads * ercc_concentration) /
+                       n_water) ->
     labome
 
   dplyr::full_join(spillome, labome) %>%
@@ -62,16 +63,16 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
 
   contaminome %>%
     dplyr::rename(spillome=spillome_concentration, labome=labome_concentration) %>%
-    dplyr::select(tax_id, category_name, spillome, labome, contaminome_concentration) %>%
+    dplyr::select(tax_id, name, category_name, spillome, labome, contaminome_concentration) %>%
     dplyr::inner_join(pval_thresholds) %>%
     dplyr::mutate(threshold=contaminome_concentration/threshold) %>%
     dplyr::select(-contaminome_concentration) %>%
     dplyr::rename(cutoff=threshold) %>%
     dplyr::rename(spillome_expected=spillome, labome_expected=labome) %>%
-    tidyr::gather(line, concentration, -tax_id, -category_name, -tax_id) %>%
+    tidyr::gather(line, concentration, -tax_id, -name, -category_name, -tax_id) %>%
     dplyr::filter(concentration > 0) %>%
     dplyr::mutate(log10_rpm_intercept=log10(concentration*1e6)) %>%
-    dplyr::select(tax_id, line, log10_rpm_intercept) ->
+    dplyr::select(tax_id, name, line, log10_rpm_intercept) ->
     log10_rpm_intercept
 
   list(log10_rpm_intercept=log10_rpm_intercept, reports=reports)
@@ -95,5 +96,5 @@ plot_contamarkov <- function(contamarkov_list, subset_taxa=NULL, point_aes=aes()
     geom_point(mapping=point_aes) +
     geom_abline(data=log10_rpm_intercept,
                 mapping=aes(slope=-1, intercept=log10_rpm_intercept, lty=line)) +
-    facet_wrap(~tax_id)
+    facet_wrap(~name)
 }
