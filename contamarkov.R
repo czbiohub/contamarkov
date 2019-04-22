@@ -78,6 +78,18 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
   list(log10_rpm_intercept=log10_rpm_intercept, reports=reports)
 }
 
+contamarkov_ggplot <- function(reports, log10_rpm_intercept, ...) {
+  # filter log10_rpm_intercept to have same tax_id, name as reports
+  reports %>%
+    dplyr::select(tax_id, name) %>%
+    dplyr::distinct() %>%
+    dplyr::inner_join(log10_rpm_intercept) ->
+    log10_rpm_intercept
+
+  ggplot(reports, aes(x=log10(total_sample_concentration), y=log10(NT_rpm), ...)) +
+    geom_abline(data=log10_rpm_intercept, mapping=aes(slope=-1, intercept=log10_rpm_intercept, lty=line))
+}
+
 plot_contamarkov <- function(contamarkov_list, subset_taxa=NULL, point_aes=aes(color=is_water)) {
   log10_rpm_intercept <- contamarkov_list$log10_rpm_intercept
   reports <- contamarkov_list$reports
