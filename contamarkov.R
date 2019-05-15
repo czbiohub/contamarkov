@@ -1,12 +1,41 @@
 library(magrittr)
 library(ggplot2)
 
-contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
+# model counts as poisson-gamma (i.e. negative binomial)
+empirical_bayes_inverse_rate <- function(counts) {
+  # MOM estimator
+  q_hat <- mean(counts) / var(counts)
+  r_hat <- mean(counts) * q_hat / (1 - q_hat)
+
+  alpha_prior <- r_hat
+  beta_prior <- q_hat / (1 - q_hat)
+
+  alpha_posterior <- alpha_prior + counts
+  beta_posterior <- beta_prior + 1
+
+  posterior_rate <- alpha_posterior / beta_posterior
+
+  # NOTE requires alpha > 1, else infinity
+  stopifnot(alpha_posterior > 1)
+  beta_posterior / (alpha_posterior - 1)
+}
+
+contamarkov <- function(sample_table, reports, fdr_threshold=.1, use_empirical_bayes=FALSE) {
+  if (use_empirical_bayes) {
+    sample_table %>%
+      dplyr::mutate(inv_ercc = empirical_bayes_inverse_rate(total_ercc_reads)) ->
+      sample_table
+  } else {
+    sample_table %>%
+      dplyr::mutate(inv_ercc = 1/total_ercc_reads) ->
+      sample_table
+  }
+
   sample_table %>%
     dplyr::mutate(host_reads=total_reads-nonhost_reads-total_ercc_reads) %>%
-    dplyr::mutate(host_concentration=host_reads/total_ercc_reads,
-                  nonhost_concentration=nonhost_reads/total_ercc_reads) %>%
-    dplyr::mutate(total_sample_concentration=(total_reads-total_ercc_reads) / total_ercc_reads *
+    dplyr::mutate(host_concentration=host_reads * inv_ercc,
+                  nonhost_concentration=nonhost_reads * inv_ercc) %>%
+    dplyr::mutate(total_sample_concentration=(total_reads-total_ercc_reads)  * inv_ercc *
                     ercc_concentration)->
     sample_table
 
@@ -24,7 +53,7 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
     dplyr::inner_join(sample_table) %>%
     dplyr::filter(!is_water) %>%
     dplyr::group_by(tax_id, name, category_name) %>%
-    dplyr::summarize(spillome_concentration=sum(NT_r / total_ercc_reads * ercc_concentration) *
+    dplyr::summarize(spillome_concentration=sum(NT_r  * inv_ercc * ercc_concentration) *
                        mean_spill_frac) %>%
     dplyr::ungroup() ->
     spillome
@@ -34,7 +63,7 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
     dplyr::inner_join(sample_table) %>%
     dplyr::filter(is_water) %>%
     dplyr::group_by(tax_id, name, category_name) %>%
-    dplyr::summarize(labome_concentration=sum(NT_r / total_ercc_reads * ercc_concentration) /
+    dplyr::summarize(labome_concentration=sum(NT_r  * inv_ercc * ercc_concentration) /
                        n_water) ->
     labome
 
@@ -45,7 +74,7 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
 
   reports %>%
     dplyr::inner_join(sample_table) %>%
-    dplyr::mutate(tax_concentration=NT_r / total_ercc_reads * ercc_concentration) %>%
+    dplyr::mutate(tax_concentration=NT_r  * inv_ercc * ercc_concentration) %>%
     dplyr::left_join(contaminome) %>%
     dplyr::mutate(pval=pmin(1, contaminome_concentration / tax_concentration)) %>%
     dplyr::group_by(category_name) %>%
