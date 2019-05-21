@@ -1,7 +1,11 @@
 library(magrittr)
 library(ggplot2)
 
-contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
+contamarkov <- function(sample_table, reports, fdr_threshold=.1, r_column="NT_r", rpm_column="NT_rpm") {
+  reports %>%
+    dplyr::mutate(n_reads=!!sym(r_column), RPM=!!sym(rpm_column)) ->
+    reports
+
   sample_table %>%
     dplyr::mutate(host_reads=total_reads-nonhost_reads-total_ercc_reads) %>%
     dplyr::mutate(host_concentration=host_reads/total_ercc_reads,
@@ -24,7 +28,7 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
     dplyr::inner_join(sample_table) %>%
     dplyr::filter(!is_water) %>%
     dplyr::group_by(tax_id, name, category_name) %>%
-    dplyr::summarize(spillome_concentration=sum(NT_r / total_ercc_reads * ercc_concentration) *
+    dplyr::summarize(spillome_concentration=sum(n_reads / total_ercc_reads * ercc_concentration) *
                        mean_spill_frac) %>%
     dplyr::ungroup() ->
     spillome
@@ -34,7 +38,7 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
     dplyr::inner_join(sample_table) %>%
     dplyr::filter(is_water) %>%
     dplyr::group_by(tax_id, name, category_name) %>%
-    dplyr::summarize(labome_concentration=sum(NT_r / total_ercc_reads * ercc_concentration) /
+    dplyr::summarize(labome_concentration=sum(n_reads / total_ercc_reads * ercc_concentration) /
                        n_water) ->
     labome
 
@@ -45,13 +49,14 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1) {
 
   reports %>%
     dplyr::inner_join(sample_table) %>%
-    dplyr::mutate(tax_concentration=NT_r / total_ercc_reads * ercc_concentration) %>%
+    dplyr::mutate(tax_concentration=n_reads / total_ercc_reads * ercc_concentration) %>%
     dplyr::left_join(contaminome) %>%
     dplyr::mutate(pval=pmin(1, contaminome_concentration / tax_concentration)) %>%
     dplyr::group_by(category_name) %>%
     dplyr::mutate(padj=p.adjust(pval, method="BH")) %>%
     dplyr::ungroup() %>%
     dplyr::select(!!! c(names(reports), "is_water", "tax_concentration",
+                        "contaminome_concentration", "labome_concentration", "spillome_concentration",
                         "total_sample_concentration", "pval", "padj")) ->
     reports
 
@@ -86,7 +91,7 @@ contamarkov_ggplot <- function(reports, log10_rpm_intercept, ...) {
     dplyr::inner_join(log10_rpm_intercept) ->
     log10_rpm_intercept
 
-  ggplot(reports, aes(x=log10(total_sample_concentration), y=log10(NT_rpm), ...)) +
+  ggplot(reports, aes(x=log10(total_sample_concentration), y=log10(RPM), ...)) +
     geom_abline(data=log10_rpm_intercept, mapping=aes(slope=-1, intercept=log10_rpm_intercept, lty=line))
 }
 
@@ -104,7 +109,7 @@ plot_contamarkov <- function(contamarkov_list, subset_taxa=NULL, point_aes=aes(c
       reports
   }
 
-  ggplot(reports, mapping=aes(x=log10(total_sample_concentration), y=log10(NT_rpm), group=tax_id)) +
+  ggplot(reports, mapping=aes(x=log10(total_sample_concentration), y=log10(RPM), group=tax_id)) +
     geom_point(mapping=point_aes) +
     geom_abline(data=log10_rpm_intercept,
                 mapping=aes(slope=-1, intercept=log10_rpm_intercept, lty=line)) +
