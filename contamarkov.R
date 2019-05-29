@@ -85,6 +85,14 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1, r_column="NT_r"
 }
 
 contamarkov_ggplot <- function(reports, log10_rpm_intercept, ...) {
+  if (is.factor(reports$name)) {
+    log10_rpm_intercept %>%
+      dplyr::mutate(name=as.character(name)) %>%
+      dplyr::filter(name %in% unique(as.character(reports$name))) %>%
+      dplyr::mutate(name=factor(name, levels=levels(reports$name))) ->
+      log10_rpm_intercept
+  }
+
   # filter log10_rpm_intercept to have same tax_id, name as reports
   reports %>%
     dplyr::select(tax_id, name) %>%
