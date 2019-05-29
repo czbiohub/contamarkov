@@ -11,7 +11,8 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1, r_column="NT_r"
     dplyr::mutate(host_concentration=host_reads/total_ercc_reads,
                   nonhost_concentration=nonhost_reads/total_ercc_reads) %>%
     dplyr::mutate(total_sample_concentration=(total_reads-total_ercc_reads) / total_ercc_reads *
-                    ercc_concentration)->
+                    ercc_concentration) %>%
+    dplyr::filter(sample_table$sample_name %in% unique(reports$sample_name)) ->
     sample_table
 
   sample_table %>%
