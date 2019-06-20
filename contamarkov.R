@@ -1,16 +1,25 @@
 library(magrittr)
 library(ggplot2)
 
-contamarkov <- function(sample_table, reports, fdr_threshold=.1, r_column="NT_r", rpm_column="NT_rpm") {
+contamarkov <- function(sample_table, reports, fdr_threshold=.1,
+                        r_column="NT_r", rpm_column="NT_rpm") {
   reports %>%
-    dplyr::mutate(n_reads=!!sym(r_column), RPM=!!sym(rpm_column)) ->
+    dplyr::mutate(n_reads=!!sym(r_column), RPM=!!sym(rpm_column)) %>%
+    dplyr::inner_join(dplyr::select(sample_table, sample_name,
+                                    nonhost_reads, compression_ratio)) %>%
+    dplyr::mutate(n_reads = compression_ratio * n_reads,
+                  RPM = compression_ratio * RPM) %>%
+    dplyr::select(-compression_ratio, -nonhost_reads) ->
     reports
 
   sample_table %>%
-    dplyr::mutate(host_reads=total_reads-nonhost_reads-total_ercc_reads) %>%
+    dplyr::mutate(nonhost_reads = nonhost_reads * compression_ratio) %>%
+    dplyr::mutate(host_reads=total_reads-nonhost_reads*100/quality_control-total_ercc_reads) %>%
     dplyr::mutate(host_concentration=host_reads/total_ercc_reads,
                   nonhost_concentration=nonhost_reads/total_ercc_reads) %>%
-    dplyr::mutate(total_sample_concentration=(total_reads-total_ercc_reads) / total_ercc_reads *
+    dplyr::mutate(total_sample_concentration =
+                    (total_reads-total_ercc_reads) /
+                    total_ercc_reads *
                     ercc_concentration) %>%
     dplyr::filter(sample_table$sample_name %in% unique(reports$sample_name)) ->
     sample_table
