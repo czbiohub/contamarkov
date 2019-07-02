@@ -2,7 +2,7 @@ library(magrittr)
 library(ggplot2)
 
 contamarkov <- function(sample_table, reports, fdr_threshold=.1,
-                        use_nr=FALSE) {
+                        use_nr=FALSE, labome_only=FALSE) {
   reports %>%
     dplyr::mutate(n_reads=if (use_nr) NR_r else NT_r) %>%
     {if (use_nr)
@@ -66,7 +66,8 @@ contamarkov <- function(sample_table, reports, fdr_threshold=.1,
 
   dplyr::full_join(spillome, labome) %>%
     tidyr::replace_na(list(spillome_concentration=0, labome_concentration=0)) %>%
-    dplyr::mutate(contaminome_concentration=spillome_concentration + labome_concentration) ->
+    {if (labome_only) dplyr::mutate(.,contaminome_concentration=labome_concentration)
+     else dplyr::mutate(.,contaminome_concentration=spillome_concentration + labome_concentration)} ->
     contaminome
 
   reports %>%
